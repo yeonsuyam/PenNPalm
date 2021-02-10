@@ -11,7 +11,7 @@ LSM9DS1 imu;
 // Sketch Output Settings
 #define PRINT_CALCULATED
 //#define PRINT_RAW
-#define PRINT_SPEED 250 // 250 ms between prints
+#define PRINT_SPEED 1000 // 250 ms between prints
 static unsigned long lastPrint = 0; // Keep track of print time
 
 // Earth's magnetic field varies by location. Add or subtract
@@ -117,15 +117,13 @@ void printAttitude(float ax, float ay, float az, float mx, float my, float mz)
   else if (heading < -PI) heading += (2 * PI);
 
   // Convert everything from radians to degrees:
-  heading *= 180.0 / PI;
-  pitch *= 180.0 / PI;
-  roll  *= 180.0 / PI;
+  // heading *= 180.0 / PI;
+  // pitch *= 180.0 / PI;
+  // roll  *= 180.0 / PI;
 
-  Serial.print("Pitch, Roll: ");
   Serial.print(pitch, 2);
   Serial.print(", ");
   Serial.println(roll, 2);
-  Serial.print("Heading: "); Serial.println(heading, 2);
 }
 
 
@@ -251,35 +249,24 @@ void loop() {
     imu.readMag();
   }
 
-  if ((lastPrint + PRINT_SPEED) < millis())
-  {
-    printGyro();  // Print "G: gx, gy, gz"
-    printAccel(); // Print "A: ax, ay, az"
-    printMag();   // Print "M: mx, my, mz"
-    // Print the heading and orientation for fun!
-    // Call print attitude. The LSM9DS1's mag x and y
-    // axes are opposite to the accelerometer, so my, mx are
-    // substituted for each other.
-    printAttitude(imu.ax, imu.ay, imu.az,
-                  -imu.my, -imu.mx, imu.mz);
-    Serial.println();
+  printAttitude(imu.ax, imu.ay, imu.az,
+                -imu.my, -imu.mx, imu.mz);
 
-    lastPrint = millis(); // Update lastPrint time
-  }
+  Serial.flush();
 
 
   //////////////////
   // READ PAT9125 //
   //////////////////
-  word dx = 0;
-  word dy = 0;
-  if(readPAT9125(0x02) & 0x80){  // motiTOUCH detected
-    word dxy = readPAT9125(0x12);   // Delta_XY_Hi
-    dx = (dxy << 4) & 0x0f00;
-    dx = dx | readPAT9125(0x03);     // Delta_X_Lo
-    word dy = (dxy << 8) & 0x0f00;
-    dy = dy | readPAT9125(0x04);     // Delta_Y_Lo
-    prettyPrint(dx);
-  }
-  delay(30);
+  // word dx = 0;
+  // word dy = 0;
+  // if(readPAT9125(0x02) & 0x80){  // motiTOUCH detected
+  //   word dxy = readPAT9125(0x12);   // Delta_XY_Hi
+  //   dx = (dxy << 4) & 0x0f00;
+  //   dx = dx | readPAT9125(0x03);     // Delta_X_Lo
+  //   word dy = (dxy << 8) & 0x0f00;
+  //   dy = dy | readPAT9125(0x04);     // Delta_Y_Lo
+  //   prettyPrint(dx);
+  // }
+  // delay(30);
 }
