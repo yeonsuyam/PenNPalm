@@ -22,7 +22,7 @@ PRINT_SPEED = 0.8
 def visualize(x, y):
 	xList = []
 	yList = []
-	length = 400
+	length = 2000
 
 	plt.figure(figsize=(5, 5))
 	plt.cla()
@@ -90,9 +90,12 @@ def main(xData, yData):
 			
 			dx, dy = tuple(int(num) for num in line.split(', '))
 
-			print("dx: ", dx, "dy: ", dy)
+			if dx == 999:
+				continue
 
-			x -= dx
+			# print("dx: ", dx, "dy: ", dy)
+
+			x += dx
 			y += dy
 
 			xData.put(x)
