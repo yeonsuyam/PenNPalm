@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <SparkFunLSM9DS1.h>
+#include <CapacitiveSensor.h>
 
 LSM9DS1 imu;
 
@@ -11,7 +12,7 @@ LSM9DS1 imu;
 // Sketch Output Settings
 #define PRINT_CALCULATED
 //#define PRINT_RAW
-#define PRINT_SPEED 1000 // 250 ms between prints
+#define PRINT_SPEED 800 // 250 ms between prints
 static unsigned long lastPrint = 0; // Keep track of print time
 
 // Earth's magnetic field varies by location. Add or subtract
@@ -20,6 +21,18 @@ static unsigned long lastPrint = 0; // Keep track of print time
 // http://www.ngdc.noaa.gov/geomag-web/#declination
 // #define DECLINATION -8.58 // Declination (degrees) in Boulder, CO.
 #define DECLINATION 8.42 // Declination (degrees) in Daejeon
+
+
+// For PAT9125EL 
+// The I2C address is selected by the ID_SEL pin.
+// High = 0x73, Low = 0x75, or NC = 0x79
+#define PAT_ADDR 0x75
+
+
+// For CAPACITIVE SENSING
+CapacitiveSensor cs_2_3 = CapacitiveSensor(2,3); //10M Resistor between pins 7 and 8, you may also connect an antenna on pin 8
+unsigned long csSum;
+
 
 void printGyro()
 {
@@ -100,7 +113,7 @@ void printMag()
 // http://cache.freescale.com/files/sensors/doc/app_note/AN3461.pdf?fpsp=1
 // Heading calculations taken from this app note:
 // http://www51.honeywell.com/aero/common/documents/myaerospacecatalog-documents/Defense_Brochures-documents/Magnetic__Literature_Application_notes-documents/AN203_Compass_Heading_Using_Magnetometers.pdf
-void printAttitude(float ax, float ay, float az, float mx, float my, float mz)
+void printPitchRoll(float ax, float ay, float az, float mx, float my, float mz)
 {
   float roll = atan2(ay, az);
   float pitch = atan2(-ax, sqrt(ay * ay + az * az));
@@ -126,15 +139,6 @@ void printAttitude(float ax, float ay, float az, float mx, float my, float mz)
   Serial.println(roll, 2);
 }
 
-
-
-
-
-// For PAT9125EL 
-// The I2C address is selected by the ID_SEL pin.
-// High = 0x73, Low = 0x75, or NC = 0x79
-#define PAT_ADDR 0x75
-
 byte readPAT9125(byte address){
   Wire.beginTransmission(PAT_ADDR);
   Wire.write(address);
@@ -152,17 +156,97 @@ void writePAT9125(byte address, byte data){
 
 // Utility functions
 
-void prettyPrint(word w){
-  if(w < 0x800){
-    Serial.print("+");
-    Serial.println(String(w));
-  }
-  else if(w > 0x800){
-    w = 0x1000 - w;
-    Serial.print("-");
-    Serial.println(String(w));
+void prettyPrint(word w, int xy){
+  if (xy == 1) {
+    // x
+    if(w < 0x800){
+      Serial.print("-");
+      Serial.print(String(w));
+    }
+    else if(w > 0x800){
+      w = 0x1000 - w;
+      Serial.print("+");
+      Serial.print(String(w));
+    }
+  } else {
+    // y
+    if(w < 0x800){
+      Serial.print("-");
+      Serial.print(String(w));
+    }
+    else if(w > 0x800){
+      w = 0x1000 - w;
+      Serial.print("+");
+      Serial.print(String(w));
+    }
+    
   }
 }
+
+
+bool isTouch() {
+  long cs = cs_2_3.capacitiveSensor(80); //a: Sensor resolution is set to 80
+//  Serial.println(cs);
+  if (cs > 300) { //b: Arbitrary number
+//      Serial.println(cs);
+      return true;
+  } else {
+    return false;
+  }
+}
+
+
+void readIMU() {
+  //////////////
+  // READ IMU //
+  //////////////
+  // Update the sensor values whenever new data is available
+  if ( imu.gyroAvailable() )
+  {
+    // To read from the gyroscope,  first call the
+    // readGyro() function. When it exits, it'll update the
+    // gx, gy, and gz variables with the most current data.
+    imu.readGyro();
+  }
+  if ( imu.accelAvailable() )
+  {
+    // To read from the accelerometer, first call the
+    // readAccel() function. When it exits, it'll update the
+    // ax, ay, and az variables with the most current data.
+    imu.readAccel();
+  }
+  if ( imu.magAvailable() )
+  {
+    // To read from the magnetometer, first call the
+    // readMag() function. When it exits, it'll update the
+    // mx, my, and mz variables with the most current data.
+    imu.readMag();
+  }
+
+   printPitchRoll(imu.ax, imu.ay, imu.az,
+                -imu.my, -imu.mx, imu.mz);
+}
+
+
+void readDisplacement() {
+  //////////////////
+  // READ PAT9125 //
+  //////////////////
+   word dx = 0;
+   word dy = 0;
+   if(readPAT9125(0x02) & 0x80){  // motiTOUCH detected
+     word dxy = readPAT9125(0x12);   // Delta_XY_Hi
+     dx = (dxy << 4) & 0x0f00;
+     dx = dx | readPAT9125(0x03);     // Delta_X_Lo
+     word dy = (dxy << 8) & 0x0f00;
+     dy = dy | readPAT9125(0x04);     // Delta_Y_Lo
+     prettyPrint(dx, 1);
+     Serial.print(", ");
+     prettyPrint(dy, 2);
+     Serial.println("");
+   }
+}
+
 
 void setup() {
   // Enable the voltage regulator
@@ -222,51 +306,42 @@ void setup() {
   }
 }
 
-void loop() {  
-  //////////////
-  // READ IMU //
-  //////////////
-  // Update the sensor values whenever new data is available
-  if ( imu.gyroAvailable() )
-  {
-    // To read from the gyroscope,  first call the
-    // readGyro() function. When it exits, it'll update the
-    // gx, gy, and gz variables with the most current data.
-    imu.readGyro();
+
+int noTouchTimer = 0;
+
+void loop() {
+//  Serial.println(isTouch());
+//  if (isTouch()) {
+//    if (!isTouchBefore) {
+//      Serial.println("-1111, -1111");
+//      isTouchBefore = true;
+//    }
+//    readDisplacement();
+//  } else {
+//    if (isTouchBefore){
+//      Serial.println("-1111, -1111");
+//      isTouchBefore = false;
+//    }
+//    readIMU();
+//  }
+  
+  if (isTouch()){
+    readDisplacement();
+    noTouchTimer = 0;
+  } else {
+    noTouchTimer += 1;
+    if (noTouchTimer == 100){
+      Serial.println("+999, 0");
+    }
+    else if (noTouchTimer == 500){
+      Serial.println("+999, 0");
+    }
+    else if (noTouchTimer == 1000){
+      Serial.println("+999, 0");
+    } 
+
+    if (noTouchTimer > 1000){
+      //readIMU();      
+    }
   }
-  if ( imu.accelAvailable() )
-  {
-    // To read from the accelerometer, first call the
-    // readAccel() function. When it exits, it'll update the
-    // ax, ay, and az variables with the most current data.
-    imu.readAccel();
-  }
-  if ( imu.magAvailable() )
-  {
-    // To read from the magnetometer, first call the
-    // readMag() function. When it exits, it'll update the
-    // mx, my, and mz variables with the most current data.
-    imu.readMag();
-  }
-
-  printAttitude(imu.ax, imu.ay, imu.az,
-                -imu.my, -imu.mx, imu.mz);
-
-  Serial.flush();
-
-
-  //////////////////
-  // READ PAT9125 //
-  //////////////////
-  // word dx = 0;
-  // word dy = 0;
-  // if(readPAT9125(0x02) & 0x80){  // motiTOUCH detected
-  //   word dxy = readPAT9125(0x12);   // Delta_XY_Hi
-  //   dx = (dxy << 4) & 0x0f00;
-  //   dx = dx | readPAT9125(0x03);     // Delta_X_Lo
-  //   word dy = (dxy << 8) & 0x0f00;
-  //   dy = dy | readPAT9125(0x04);     // Delta_Y_Lo
-  //   prettyPrint(dx);
-  // }
-  // delay(30);
 }
