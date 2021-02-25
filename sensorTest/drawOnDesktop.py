@@ -63,7 +63,7 @@ def mouseDraw(xData, yData):
         else:
             if not isTouch(dx):
                 mouse.release(Button.left)
-                mouse.move(50, 0)
+                # mouse.move(50, -20)
                 isDrawFlag = 2
 
             else:
@@ -71,8 +71,8 @@ def mouseDraw(xData, yData):
                     isDrawFlag -= 1
                     if isDrawFlag == 0:
                         mouse.press(Button.left)
-
-                mouse.move(dx, -dy)
+                else:
+                    mouse.move(dx, -dy)
 
 
 if __name__ == "__main__":
