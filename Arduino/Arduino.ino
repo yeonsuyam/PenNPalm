@@ -5,32 +5,130 @@
 #include <SPI.h>
 #include <SparkFunLSM9DS1.h>
 #include <CapacitiveSensor.h>
+#include <Adafruit_Sensor_Calibration.h>
+#include "Adafruit_Sensor_Calibration.h"
+#include <Adafruit_AHRS.h>
+
+///////////////////////////
+//// For IMU (LSM9DS1) ////
+///////////////////////////
 
 LSM9DS1 imu;
+Adafruit_Madgwick filter;  // faster than NXP
+//Adafruit_Mahony filter;  // fastest/smalleset
 
-// For SM9DS1
-// Sketch Output Settings
-#define PRINT_CALCULATED
-//#define PRINT_RAW
-#define PRINT_SPEED 800 // 250 ms between prints
-static unsigned long lastPrint = 0; // Keep track of print time
+#if defined(ADAFRUIT_SENSOR_CALIBRATION_USE_EEPROM)
+Adafruit_Sensor_Calibration_EEPROM cal;
+#else
+Adafruit_Sensor_Calibration_SDFat cal;
+#endif
 
-// Earth's magnetic field varies by location. Add or subtract
-// a declination to get a more accurate heading. Calculate
-// your's here:
-// http://www.ngdc.noaa.gov/geomag-web/#declination
-// #define DECLINATION -8.58 // Declination (degrees) in Boulder, CO.
-#define DECLINATION 8.42 // Declination (degrees) in Daejeon
+/**! XYZ vector of offsets for zero-g, in m/s^2 */
+float accel_zerog[3] = {0, 0, 0};
+
+/**! XYZ vector of offsets for zero-rate, in rad/s */
+float gyro_zerorate[3] = {0, 0, 0};
+
+/**! XYZ vector of offsets for hard iron calibration (in uT) */
+float mag_hardiron[3] = {0, 0, 0};
+
+/**! The 3x3 matrix for soft-iron calibration (unitless) */
+float mag_softiron[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+/**! The magnetic field magnitude in uTesla */
+float mag_field = 50;
 
 
-// For PAT9125EL 
+
+#define FILTER_UPDATE_RATE_HZ 100
+#define PRINT_EVERY_N_UPDATES 10
+//#define AHRS_DEBUG_OUTPUT
+
+uint32_t timestamp;
+
+/////////////////////////////////////////
+// For Displacement sensor (PAT9125EL) //
+/////////////////////////////////////////
+
 // The I2C address is selected by the ID_SEL pin.
 // High = 0x73, Low = 0x75, or NC = 0x79
 #define PAT_ADDR 0x75
 
+void prettyPrint(word w, int xy) {
+  if (xy == 1) {
+    // x
+    if (w < 0x800) {
+      Serial.print("-");
+      Serial.print(String(w));
+    }
+    else if (w > 0x800) {
+      w = 0x1000 - w;
+      Serial.print("+");
+      Serial.print(String(w));
+    }
+  } else {
+    // y
+    if (w < 0x800) {
+      Serial.print("-");
+      Serial.print(String(w));
+    }
+    else if (w > 0x800) {
+      w = 0x1000 - w;
+      Serial.print("+");
+      Serial.print(String(w));
+    }
 
-// For CAPACITIVE SENSING
-CapacitiveSensor cs_2_3 = CapacitiveSensor(2,3); //10M Resistor between pins 7 and 8, you may also connect an antenna on pin 8
+  }
+}
+
+void readDisplacement() {
+  //////////////////
+  // READ PAT9125 //
+  //////////////////
+  word dx = 0;
+  word dy = 0;
+  if (readPAT9125(0x02) & 0x80) { // motiTOUCH detected
+    word dxy = readPAT9125(0x12);   // Delta_XY_Hi
+    dx = (dxy << 4) & 0x0f00;
+    dx = dx | readPAT9125(0x03);     // Delta_X_Lo
+    word dy = (dxy << 8) & 0x0f00;
+    dy = dy | readPAT9125(0x04);     // Delta_Y_Lo
+    prettyPrint(dx, 1);
+    Serial.print(", ");
+    prettyPrint(dy, 2);
+    Serial.println("");
+  }
+}
+
+
+void initDisplacement() {
+  // Checks product ID to make sure communicatiTOUCH protocol is working.
+  if (readPAT9125(0x00) != 0x31) {
+    Serial.println("Failed to find PAT9125");
+    while (1);
+  }
+
+  // The remaining lines are from a reference code from
+  // https://os.mbed.com/compTOUCHents/PAT9125EL-EvaluatiTOUCH-Board/
+  // I do not know what these lines are doing exactly. It just works!
+  writePAT9125(0x06, 0x97);    // Software reset (i.e. set bit7 to 1)
+  delay(1);                     // Delay 1 ms for chip reset timing.
+  writePAT9125(0x06, 0x17);    // Ensure software reset is done and chip is no longer in that state.
+
+  // These unlisted registers are used for internal recommended settings.
+  if (readPAT9125(0x5E) == 0x04) {
+    writePAT9125(0x5E, 0x08);
+    if (readPAT9125(0x5D) == 0x10)
+      writePAT9125(0x5D, 0x19);
+  }
+  writePAT9125(0x09, 0x00);  // enable write protect.
+}
+
+////////////////////////////
+// For CAPACITIVE SENSING //
+////////////////////////////
+
+CapacitiveSensor cs_2_3 = CapacitiveSensor(2, 3); //10M Resistor between pins 7 and 8, you may also connect an antenna on pin 8
 unsigned long csSum;
 
 
@@ -107,39 +205,7 @@ void printMag()
 #endif
 }
 
-// Calculate pitch, roll, and heading.
-// Pitch is the angle rotated around the y-axis, roll is the board's rotation around the x-axis, and heading (i.e. yaw) is the sensor's rotation around the z-axis.
-// Pitch/roll calculations take from this app note:
-// http://cache.freescale.com/files/sensors/doc/app_note/AN3461.pdf?fpsp=1
-// Heading calculations taken from this app note:
-// http://www51.honeywell.com/aero/common/documents/myaerospacecatalog-documents/Defense_Brochures-documents/Magnetic__Literature_Application_notes-documents/AN203_Compass_Heading_Using_Magnetometers.pdf
-void printPitchRoll(float ax, float ay, float az, float mx, float my, float mz)
-{
-  float roll = atan2(ay, az);
-  float pitch = atan2(-ax, sqrt(ay * ay + az * az));
-
-  float heading;
-  if (my == 0)
-    heading = (mx < 0) ? PI : 0;
-  else
-    heading = atan2(mx, my);
-
-  heading -= DECLINATION * PI / 180;
-
-  if (heading > PI) heading -= (2 * PI);
-  else if (heading < -PI) heading += (2 * PI);
-
-  // Convert everything from radians to degrees:
-  // heading *= 180.0 / PI;
-  // pitch *= 180.0 / PI;
-  // roll  *= 180.0 / PI;
-
-  Serial.print(pitch, 2);
-  Serial.print(", ");
-  Serial.println(roll, 2);
-}
-
-byte readPAT9125(byte address){
+byte readPAT9125(byte address) {
   Wire.beginTransmission(PAT_ADDR);
   Wire.write(address);
   Wire.endTransmission();
@@ -147,49 +213,61 @@ byte readPAT9125(byte address){
   return Wire.read();
 }
 
-void writePAT9125(byte address, byte data){
+
+void writePAT9125(byte address, byte data) {
   Wire.beginTransmission(PAT_ADDR);
   Wire.write(address);
   Wire.write(data);
   Wire.endTransmission();
 }
 
-// Utility functions
-
-void prettyPrint(word w, int xy){
-  if (xy == 1) {
-    // x
-    if(w < 0x800){
-      Serial.print("-");
-      Serial.print(String(w));
-    }
-    else if(w > 0x800){
-      w = 0x1000 - w;
-      Serial.print("+");
-      Serial.print(String(w));
-    }
+bool calibrate(sensors_event_t &event) {
+  if (event.type == SENSOR_TYPE_MAGNETIC_FIELD) {
+    // hard iron cal
+    float mx = event.magnetic.x - mag_hardiron[0];
+    float my = event.magnetic.y - mag_hardiron[1];
+    float mz = event.magnetic.z - mag_hardiron[2];
+    // soft iron cal
+    event.magnetic.x =
+      mx * mag_softiron[0] + my * mag_softiron[1] + mz * mag_softiron[2];
+    event.magnetic.y =
+      mx * mag_softiron[3] + my * mag_softiron[4] + mz * mag_softiron[5];
+    event.magnetic.z =
+      mx * mag_softiron[6] + my * mag_softiron[7] + mz * mag_softiron[8];
+  } else if (event.type == SENSOR_TYPE_GYROSCOPE) {
+    event.gyro.x -= gyro_zerorate[0];
+    event.gyro.y -= gyro_zerorate[1];
+    event.gyro.z -= gyro_zerorate[2];
+  } else if (event.type == SENSOR_TYPE_ACCELEROMETER) {
+    event.acceleration.x -= accel_zerog[0];
+    event.acceleration.y -= accel_zerog[1];
+    event.acceleration.z -= accel_zerog[2];
   } else {
-    // y
-    if(w < 0x800){
-      Serial.print("-");
-      Serial.print(String(w));
-    }
-    else if(w > 0x800){
-      w = 0x1000 - w;
-      Serial.print("+");
-      Serial.print(String(w));
-    }
-    
+    return false;
   }
+  return true;
+}
+void initIMU() {
+  if (imu.begin() == false) // with no arguments, this uses default addresses (AG:0x6B, M:0x1E) and i2c port (Wire).
+  {
+    Serial.println("Failed to communicate with LSM9DS1.");
+    Serial.println("Double-check wiring.");
+    Serial.println("Default settings in this sketch will " \
+                   "work for an out of the box LSM9DS1 " \
+                   "Breakout, but may need to be modified " \
+                   "if the board jumpers are.");
+    while (1);
+  }
+
+  //imu.calibrate(false);
+  //imu.calibrateMag(false);
 }
 
 
 bool isTouch() {
   long cs = cs_2_3.capacitiveSensor(80); //a: Sensor resolution is set to 80
-//  Serial.println(cs);
-  if (cs > 300) { //b: Arbitrary number
-//      Serial.println(cs);
-      return true;
+  if (cs > 100) { //b: Arbitrary number
+    return true;
   } else {
     return false;
   }
@@ -197,6 +275,9 @@ bool isTouch() {
 
 
 void readIMU() {
+  static uint8_t counter = 0;
+  //imu.calibrate(false);
+  //imu.calibrateMag(false);
   //////////////
   // READ IMU //
   //////////////
@@ -223,29 +304,47 @@ void readIMU() {
     imu.readMag();
   }
 
-   printPitchRoll(imu.ax, imu.ay, imu.az,
-                -imu.my, -imu.mx, imu.mz);
+  sensors_event_t acc, gyr, magg;
+  acc.acceleration.x = imu.calcAccel(imu.ax);
+  acc.acceleration.y = imu.calcAccel(imu.ay);
+  acc.acceleration.y = imu.calcAccel(imu.az);
+  acc.type = SENSOR_TYPE_MAGNETIC_FIELD;
+  gyr.gyro.x = imu.calcGyro(imu.gx);
+  gyr.gyro.y = imu.calcGyro(imu.gy);
+  gyr.gyro.z = imu.calcGyro(imu.gz);
+  gyr.type = SENSOR_TYPE_GYROSCOPE;
+  magg.magnetic.x = imu.calcMag(imu.mx);
+  magg.magnetic.y = imu.calcMag(imu.my);
+  magg.magnetic.z = imu.calcMag(imu.mz);
+  magg.type = SENSOR_TYPE_ACCELEROMETER;
+
+  calibrate(acc);
+  calibrate(gyr);
+  calibrate(magg);
+
+  //filter.update(imu.gx, imu.gy, imu.gz, imu.ax, imu.ay, imu.az, imu.mx, imu.my, imu.mz);
+  filter.update(gyr.gyro.x, gyr.gyro.y, gyr.gyro.z, acc.acceleration.x, acc.acceleration.y, acc.acceleration.z, magg.magnetic.x, magg.magnetic.y, magg.magnetic.z);
+
+  // only print the calculated output once in a while
+  if (counter++ <= PRINT_EVERY_N_UPDATES) {
+    return;
+  }
+  // reset the counter
+  counter = 0;
+
+  // print the heading, pitch and roll
+  float roll = filter.getRoll();
+  float pitch = filter.getPitch();
+  float heading = filter.getYaw();
+  Serial.print("Orientation: ");
+  Serial.print(heading);
+  Serial.print(", ");
+  Serial.print(pitch);
+  Serial.print(", ");
+  Serial.println(roll);
 }
 
 
-void readDisplacement() {
-  //////////////////
-  // READ PAT9125 //
-  //////////////////
-   word dx = 0;
-   word dy = 0;
-   if(readPAT9125(0x02) & 0x80){  // motiTOUCH detected
-     word dxy = readPAT9125(0x12);   // Delta_XY_Hi
-     dx = (dxy << 4) & 0x0f00;
-     dx = dx | readPAT9125(0x03);     // Delta_X_Lo
-     word dy = (dxy << 8) & 0x0f00;
-     dy = dy | readPAT9125(0x04);     // Delta_Y_Lo
-     prettyPrint(dx, 1);
-     Serial.print(", ");
-     prettyPrint(dy, 2);
-     Serial.println("");
-   }
-}
 
 
 void setup() {
@@ -255,7 +354,7 @@ void setup() {
 
   // SETUP SERIAL
   Serial.begin(115200);
-  
+
   // wait for serial port to open on native usb devices
   while (!Serial) {
     delay(1);
@@ -265,83 +364,45 @@ void setup() {
   Wire.begin();
   Wire.setClock(400000);
 
-  ////////////////////////
-  // INITIALIZE PAT9125 //
-  ////////////////////////
-  
-  // Checks product ID to make sure communicatiTOUCH protocol is working.
-  if(readPAT9125(0x00) != 0x31){
-    Serial.println("Failed to find PAT9125");
-    while (1);
-  }
+  initDisplacement();
+  initIMU();
 
-  // The remaining lines are from a reference code from
-  // https://os.mbed.com/compTOUCHents/PAT9125EL-EvaluatiTOUCH-Board/
-  // I do not know what these lines are doing exactly. It just works!
-  writePAT9125(0x06, 0x97);    // Software reset (i.e. set bit7 to 1)
-  delay(1);                     // Delay 1 ms for chip reset timing.
-  writePAT9125(0x06, 0x17);    // Ensure software reset is done and chip is no longer in that state.
+  filter.begin(FILTER_UPDATE_RATE_HZ);
+  timestamp = millis();
 
-  // These unlisted registers are used for internal recommended settings.
-  if(readPAT9125(0x5E) == 0x04){      
-    writePAT9125(0x5E, 0x08);
-    if(readPAT9125(0x5D) == 0x10)
-      writePAT9125(0x5D, 0x19);
-  }
-  writePAT9125(0x09, 0x00);  // enable write protect.
-
-  ////////////////////
-  // INITIALIZE IMU //
-  ////////////////////
-  
-  if (imu.begin() == false) // with no arguments, this uses default addresses (AG:0x6B, M:0x1E) and i2c port (Wire).
-  {
-    Serial.println("Failed to communicate with LSM9DS1.");
-    Serial.println("Double-check wiring.");
-    Serial.println("Default settings in this sketch will " \
-                   "work for an out of the box LSM9DS1 " \
-                   "Breakout, but may need to be modified " \
-                   "if the board jumpers are.");
-    while (1);
-  }
+  Wire.setClock(400000); // 400KHz
 }
 
 
 int noTouchTimer = 0;
 
 void loop() {
-//  Serial.println(isTouch());
-//  if (isTouch()) {
-//    if (!isTouchBefore) {
-//      Serial.println("-1111, -1111");
-//      isTouchBefore = true;
-//    }
-//    readDisplacement();
-//  } else {
-//    if (isTouchBefore){
-//      Serial.println("-1111, -1111");
-//      isTouchBefore = false;
-//    }
-//    readIMU();
-//  }
-  
-  if (isTouch()){
+  if ((millis() - timestamp) < (1000 / FILTER_UPDATE_RATE_HZ)) {
+    return;
+  }
+
+  timestamp = millis();
+
+  if (isTouch()) {
     readDisplacement();
     noTouchTimer = 0;
   } else {
     noTouchTimer += 1;
-    if (noTouchTimer == 100){
+    if (noTouchTimer < 10) {
+      readDisplacement();
+    
+    else if (noTouchTimer == 50) {
       Serial.println("+999, 0");
     }
-    else if (noTouchTimer == 500){
-      Serial.println("+999, 0");
-    }
-    else if (noTouchTimer == 1000){
-      Serial.println("+999, 0");
-    } 
+    // else if (noTouchTimer == 500) {
+      // Serial.println("+999, 0");
+    // }
+    // else if (noTouchTimer == 1000) {
+      // Serial.println("+999, 0");
+    // }
 
-    if (noTouchTimer > 1000){
-      //readIMU();      
+    if (noTouchTimer > 1000) {
+      //readIMU();
     }
   }
 }
