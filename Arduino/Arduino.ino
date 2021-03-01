@@ -315,7 +315,6 @@ void readIMU() {
   sensors_event_t acc, gyr, magg;
   acc.acceleration.x = imu.calcAccel(imu.ax) * SENSORS_GRAVITY_EARTH ;
   acc.acceleration.y = imu.calcAccel(imu.ay) * SENSORS_GRAVITY_EARTH ;
-  acc.acceleration.y = imu.calcAccel(imu.az) * SENSORS_GRAVITY_EARTH ;
   acc.acceleration.z = imu.calcAccel(imu.az) * SENSORS_GRAVITY_EARTH ;
   acc.type = SENSOR_TYPE_ACCELEROMETER;
   gyr.gyro.x = imu.calcGyro(imu.gx);
