@@ -12,6 +12,8 @@
 ///////////////////////////
 //// For IMU (LSM9DS1) ////
 ///////////////////////////
+#define PRINT_SPEED 250 // 250 ms between prints
+static unsigned long lastPrint = 0; // Keep track of print time
 
 LSM9DS1 imu;
 Adafruit_Madgwick filter;  // faster than NXP
@@ -247,6 +249,7 @@ bool calibrate(sensors_event_t &event) {
   }
   return true;
 }
+
 void initIMU() {
   if (imu.begin() == false) // with no arguments, this uses default addresses (AG:0x6B, M:0x1E) and i2c port (Wire).
   {
@@ -304,19 +307,24 @@ void readIMU() {
     imu.readMag();
   }
 
+  if ((lastPrint + PRINT_SPEED) > millis())
+  {
+    return;
+  }
+  
   sensors_event_t acc, gyr, magg;
-  acc.acceleration.x = imu.calcAccel(imu.ax);
-  acc.acceleration.y = imu.calcAccel(imu.ay);
-  acc.acceleration.y = imu.calcAccel(imu.az);
-  acc.type = SENSOR_TYPE_MAGNETIC_FIELD;
+  acc.acceleration.x = imu.calcAccel(imu.ax) * SENSORS_GRAVITY_EARTH ;
+  acc.acceleration.y = imu.calcAccel(imu.ay) * SENSORS_GRAVITY_EARTH ;
+  acc.acceleration.y = imu.calcAccel(imu.az) * SENSORS_GRAVITY_EARTH ;
+  acc.type = SENSOR_TYPE_ACCELEROMETER;
   gyr.gyro.x = imu.calcGyro(imu.gx);
   gyr.gyro.y = imu.calcGyro(imu.gy);
   gyr.gyro.z = imu.calcGyro(imu.gz);
   gyr.type = SENSOR_TYPE_GYROSCOPE;
-  magg.magnetic.x = imu.calcMag(imu.mx);
-  magg.magnetic.y = imu.calcMag(imu.my);
-  magg.magnetic.z = imu.calcMag(imu.mz);
-  magg.type = SENSOR_TYPE_ACCELEROMETER;
+  magg.magnetic.x = imu.calcMag(imu.mx) * SENSORS_GAUSS_TO_MICROTESLA / 2;
+  magg.magnetic.y = imu.calcMag(imu.my) * SENSORS_GAUSS_TO_MICROTESLA / 2;
+  magg.magnetic.z = imu.calcMag(imu.mz) * SENSORS_GAUSS_TO_MICROTESLA / 2;
+  magg.type = SENSOR_TYPE_MAGNETIC_FIELD;
 
   calibrate(acc);
   calibrate(gyr);
@@ -377,23 +385,18 @@ void setup() {
 int noTouchTimer = 0;
 
 void loop() {
-  if ((millis() - timestamp) < (1000 / FILTER_UPDATE_RATE_HZ)) {
-    return;
-  }
-
-  timestamp = millis();
-
-  if (isTouch()) {
-    readDisplacement();
-    noTouchTimer = 0;
-  } else {
-    noTouchTimer += 1;
-    if (noTouchTimer < 10) {
-      readDisplacement();
+  readIMU();
+  //if (isTouch()) {
+    //readDisplacement();
+    //noTouchTimer = 0;
+  //} else {
+    //noTouchTimer += 1;
+    //if (noTouchTimer < 10) {
+      //readDisplacement();
     
-    else if (noTouchTimer == 50) {
-      Serial.println("+999, 0");
-    }
+    //else if (noTouchTimer == 50) {
+      //Serial.println("+999, 0");
+    //}
     // else if (noTouchTimer == 500) {
       // Serial.println("+999, 0");
     // }
@@ -401,8 +404,8 @@ void loop() {
       // Serial.println("+999, 0");
     // }
 
-    if (noTouchTimer > 1000) {
+    //if (noTouchTimer > 1000) {
       //readIMU();
-    }
-  }
+    //}
+  //}
 }
