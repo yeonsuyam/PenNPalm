@@ -316,6 +316,7 @@ void readIMU() {
   acc.acceleration.x = imu.calcAccel(imu.ax) * SENSORS_GRAVITY_EARTH ;
   acc.acceleration.y = imu.calcAccel(imu.ay) * SENSORS_GRAVITY_EARTH ;
   acc.acceleration.y = imu.calcAccel(imu.az) * SENSORS_GRAVITY_EARTH ;
+  acc.acceleration.z = imu.calcAccel(imu.az) * SENSORS_GRAVITY_EARTH ;
   acc.type = SENSOR_TYPE_ACCELEROMETER;
   gyr.gyro.x = imu.calcGyro(imu.gx);
   gyr.gyro.y = imu.calcGyro(imu.gy);
@@ -377,8 +378,6 @@ void setup() {
 
   filter.begin(FILTER_UPDATE_RATE_HZ);
   timestamp = millis();
-
-  Wire.setClock(400000); // 400KHz
 }
 
 
