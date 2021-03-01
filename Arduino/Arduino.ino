@@ -32,10 +32,10 @@ float accel_zerog[3] = {0, 0, 0};
 float gyro_zerorate[3] = {0, 0, 0};
 
 /**! XYZ vector of offsets for hard iron calibration (in uT) */
-float mag_hardiron[3] = {0, 0, 0};
+float mag_hardiron[3] = {12.47, -2.45, 41.38};
 
 /**! The 3x3 matrix for soft-iron calibration (unitless) */
-float mag_softiron[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+float mag_softiron[9] = {0.992, 0.026, 0.022, 0.026, 0.989, 0.002, 0.022, 0.002, 1.021};
 
 /**! The magnetic field magnitude in uTesla */
 float mag_field = 50;
