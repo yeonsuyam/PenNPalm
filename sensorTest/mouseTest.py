@@ -40,7 +40,7 @@ def init():
     ser.flush()
 
     # throw away some number of packets. they are not in sync. i dont know why.
-    for i in range(5):
+    for i in range(30):
         x = ser.readline()
 
     return ser
@@ -140,16 +140,16 @@ def main():
 	print("Initialization for relative plotting")
 	pitch, roll = 0.0, 0.0
 
-	for i in range(10):
+	for i in range(100):
 		line = arduino.readline().decode('ascii')
 		pitch, roll = tuple(map(sum, zip((pitch, roll), tuple(float(number) for number in line.split(', ')))))
 
-	pitchStandard, rollStandard = pitch / 10, roll / 10
+	pitchStandard, rollStandard = pitch / 100, roll / 100
 
 	print("Finished: pitch: ", pitchStandard, "roll: ", rollStandard)	
 	
 	controller = Controller()
-	mouse = Mouse(controller, 0.5, 1000, 600, 200, 0, pitchStandard, rollStandard)
+	mouse = Mouse(controller, 0.5, 4000, 1000, 200, 0, pitchStandard, rollStandard)
 
 	for i in range(100000):
 		line = arduino.readline().decode('ascii')
