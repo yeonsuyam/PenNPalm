@@ -43,8 +43,8 @@ float mag_softiron[9] = {1.013, 0.025, 0.001, 0.025, 1.000, 0.024, 0.001, 0.024,
 float mag_field = 22.4;
 
 
-#define PRINT_EVERY_N_UPDATES 20
-#define FILTER_UPDATE_RATE_HZ 150
+#define PRINT_EVERY_N_UPDATES 4
+#define FILTER_UPDATE_RATE_HZ 400
 //#define AHRS_DEBUG_OUTPUT
 
 uint32_t timestamp;
@@ -341,9 +341,9 @@ void readIMU() {
   float pitch = filter.getPitch();
   float heading = filter.getYaw();
 
-  Serial.print(pitch);
+  Serial.print(pitch, 2);
   Serial.print(", ");
-  Serial.println(-roll);
+  Serial.println(-roll, 2);
 }
 
 
