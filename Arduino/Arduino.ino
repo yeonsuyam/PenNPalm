@@ -12,7 +12,6 @@
 ///////////////////////////
 //// For IMU (LSM9DS1) ////
 ///////////////////////////
-#define PRINT_SPEED 250 // 250 ms between prints
 static unsigned long lastPrint = 0; // Keep track of print time
 
 LSM9DS1 imu;
@@ -44,8 +43,8 @@ float mag_softiron[9] = {1.013, 0.025, 0.001, 0.025, 1.000, 0.024, 0.001, 0.024,
 float mag_field = 22.4;
 
 
-#define FILTER_UPDATE_RATE_HZ 100
 #define PRINT_EVERY_N_UPDATES 20
+#define FILTER_UPDATE_RATE_HZ 150
 //#define AHRS_DEBUG_OUTPUT
 
 uint32_t timestamp;
@@ -309,11 +308,6 @@ void readIMU() {
     imu.readMag();
   }
 
-  if ((lastPrint + PRINT_SPEED) > millis())
-  {
-    return;
-  }
-  
   sensors_event_t acc, gyr, magg;
   acc.acceleration.x = imu.calcAccel(imu.ax) * SENSORS_GRAVITY_EARTH ;
   acc.acceleration.y = imu.calcAccel(imu.ay) * SENSORS_GRAVITY_EARTH ;
@@ -383,6 +377,11 @@ void setup() {
 int noTouchTimer = 0;
 
 void loop() {
+  if ((millis() - timestamp) < (1000 / FILTER_UPDATE_RATE_HZ)) {
+    //Serial.println("no");
+    return;
+  }
+  timestamp = millis();
   readIMU();
   //if (isTouch()) {
     //readDisplacement();
