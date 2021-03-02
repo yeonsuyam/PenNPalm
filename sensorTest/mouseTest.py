@@ -8,6 +8,7 @@ from numpy import power, sqrt, sin, cos
 import matplotlib.pyplot as plt
 import matplotlib
 from pynput.mouse import Button, Controller
+from mouse import Mouse
 
 # sys.stdout = open('output.txt','w')
 
@@ -47,18 +48,19 @@ def init():
 
 def mouseMove(pitch, roll):
 	global d, x, y, pitchStandard, rollStandard
-	print((pitch - pitchStandard)/np.pi * (-180), (roll - rollStandard)/np.pi * (-180))
 
 	# Relative
-	dx = d * sin(pitch - pitchStandard)
-	dy = d * sin(roll - rollStandard)
+	dx = d * sin((pitch - pitchStandard) / 180 * np.pi)
+	dy = d * sin((roll - rollStandard) / 180 * np.pi)
 
 	theta = 0
 	# Rotation matrix
 	dxRotate = dx * cos(theta) - dy * sin(theta)
 	dyRotate = dx * sin(theta) + dy * cos(theta)
 
-	mouse.position = (x + dx, y + dy)
+	dx, dy = exponentialMovingAverage(dx, dy)
+
+	mouse.position = (x + dx, y - dy)
 
 
 def visualize(axAbsolute, axRelative, pitch, roll):
@@ -135,9 +137,6 @@ def draw():
 def main():
 	arduino = init()
 
-	global pitchStandard
-	global rollStandard
-
 	print("Initialization for relative plotting")
 	pitch, roll = 0.0, 0.0
 
@@ -148,24 +147,17 @@ def main():
 	pitchStandard, rollStandard = pitch / 10, roll / 10
 
 	print("Finished: pitch: ", pitchStandard, "roll: ", rollStandard)	
-
+	
+	controller = Controller()
+	mouse = Mouse(controller, 0.5, 1000, 600, 200, 0, pitchStandard, rollStandard)
 
 	for i in range(100000):
 		line = arduino.readline().decode('ascii')
 		pitch, roll = tuple(line.split(', '))
 
-		mouseMove(float(pitch), float(roll))
-
-
+		mouse.mouseMove(float(pitch), float(roll))
 
 
 if __name__ == "__main__":
-	d = 1000
-	x, y = 600, 200
-	
-	# args = parse_args()
-	# main(args)
 	main()
-	# draw()
-
 	plt.show()
