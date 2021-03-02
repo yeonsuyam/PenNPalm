@@ -8,6 +8,8 @@ from numpy import power, sqrt, sin, cos
 import matplotlib.pyplot as plt
 import matplotlib
 from pynput.mouse import Button, Controller
+from OneEuroFilter import OneEuroFilter
+import datetime
 
 
 class Mouse():
@@ -18,6 +20,8 @@ class Mouse():
 		self.d = d
 		self.x = x
 		self.y = y
+		self.mouse.position = (x, y)
+
 		self.theta = theta
 		self.pitchStandard = pitchStandard
 		self.rollStandard = rollStandard
@@ -25,8 +29,26 @@ class Mouse():
 		self.dx = 0
 		self.dy = 0
 
+		self.initOneEuroFilter()
+
 		return
-	
+
+
+	def initOneEuroFilter(self):
+		self.config = {
+			'freq': 100,       # Hz
+			'mincutoff': 0.005,  # FIXME
+			'beta': 4,       # FIXME
+			'dcutoff': 0.005     # this one should be ok
+		}
+
+		self.oneEuroFilterX = OneEuroFilter(**self.config)
+		self.oneEuroFilterY = OneEuroFilter(**self.config)
+		self.timestamp = 0
+		self.time = datetime.datetime.now()
+
+		return
+
 
 	def getExponentialMovingAverage(self, dx, dy):
 		# print(dx, dy)
@@ -36,12 +58,22 @@ class Mouse():
 		return self.dx, self.dy
 
 
+	def getOneEuroFilter(self, dx, dy):
+		self.timestamp += (datetime.datetime.now() - self.time).microseconds/1000000
+		self.dx = self.oneEuroFilterX(dx, self.timestamp)
+		self.dy = self.oneEuroFilterY(dy, self.timestamp)
+		self.time = datetime.datetime.now()
+		# print((datetime.datetime.now() - self.time).microseconds)
+		return self.dx, self.dy
+
+
 	def pitchrollTodxdy(self, pitch, roll):
 		# Relative
 		dx = self.d * sin((pitch - self.pitchStandard) / 180 * np.pi)
 		dy = self.d * sin((roll - self.rollStandard) / 180 * np.pi)
 
-		dx, dy = self.getExponentialMovingAverage(dx, dy)
+		# dx, dy = self.getExponentialMovingAverage(dx, dy)
+		dx, dy = self.getOneEuroFilter(dx, dy)
 
 		# Rotation matrix
 		dxRotate = dx * cos(self.theta) - dy * sin(self.theta)
