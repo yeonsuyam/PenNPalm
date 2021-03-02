@@ -32,18 +32,20 @@ float accel_zerog[3] = {0, 0, 0};
 float gyro_zerorate[3] = {0, 0, 0};
 
 /**! XYZ vector of offsets for hard iron calibration (in uT) */
-float mag_hardiron[3] = {12.47, -2.45, 41.38};
+//float mag_hardiron[3] = {12.47, -2.45, 41.38};
+float mag_hardiron[3] = {41.94, 12.45, -2.72};
 
 /**! The 3x3 matrix for soft-iron calibration (unitless) */
-float mag_softiron[9] = {0.992, 0.026, 0.022, 0.026, 0.989, 0.002, 0.022, 0.002, 1.021};
+//float mag_softiron[9] = {0.992, 0.026, 0.022, 0.026, 0.989, 0.002, 0.022, 0.002, 1.021};
+float mag_softiron[9] = {1.013, 0.025, 0.001, 0.025, 1.000, 0.024, 0.001, 0.024, 0.989};
 
 /**! The magnetic field magnitude in uTesla */
-float mag_field = 50;
-
+//float mag_field = 22.33;
+float mag_field = 22.4;
 
 
 #define FILTER_UPDATE_RATE_HZ 100
-#define PRINT_EVERY_N_UPDATES 10
+#define PRINT_EVERY_N_UPDATES 20
 //#define AHRS_DEBUG_OUTPUT
 
 uint32_t timestamp;
@@ -330,8 +332,8 @@ void readIMU() {
   calibrate(gyr);
   calibrate(magg);
 
-  //filter.update(imu.gx, imu.gy, imu.gz, imu.ax, imu.ay, imu.az, imu.mx, imu.my, imu.mz);
-  filter.update(gyr.gyro.x, gyr.gyro.y, gyr.gyro.z, acc.acceleration.x, acc.acceleration.y, acc.acceleration.z, magg.magnetic.x, magg.magnetic.y, magg.magnetic.z);
+  filter.update(gyr.gyro.z, gyr.gyro.x, gyr.gyro.y, acc.acceleration.z, acc.acceleration.x, -acc.acceleration.y, magg.magnetic.z, magg.magnetic.x, magg.magnetic.y);
+  //filter.update(gyr.gyro.x, gyr.gyro.y, gyr.gyro.z, acc.acceleration.x, acc.acceleration.y, acc.acceleration.z, magg.magnetic.x, magg.magnetic.y, magg.magnetic.z);
 
   // only print the calculated output once in a while
   if (counter++ <= PRINT_EVERY_N_UPDATES) {
@@ -344,12 +346,10 @@ void readIMU() {
   float roll = filter.getRoll();
   float pitch = filter.getPitch();
   float heading = filter.getYaw();
-  Serial.print("Orientation: ");
-  Serial.print(heading);
-  Serial.print(", ");
+
   Serial.print(pitch);
   Serial.print(", ");
-  Serial.println(roll);
+  Serial.println(-roll);
 }
 
 
