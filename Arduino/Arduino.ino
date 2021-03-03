@@ -309,17 +309,17 @@ void readIMU() {
   }
 
   sensors_event_t acc, gyr, magg;
-  acc.acceleration.x = imu.calcAccel(imu.ax) * SENSORS_GRAVITY_EARTH ;
-  acc.acceleration.y = imu.calcAccel(imu.ay) * SENSORS_GRAVITY_EARTH ;
-  acc.acceleration.z = imu.calcAccel(imu.az) * SENSORS_GRAVITY_EARTH ;
+  acc.acceleration.x = imu.calcAccel(imu.ax);
+  acc.acceleration.y = imu.calcAccel(imu.ay);
+  acc.acceleration.z = imu.calcAccel(imu.az);
   acc.type = SENSOR_TYPE_ACCELEROMETER;
-  gyr.gyro.x = imu.calcGyro(imu.gx);
-  gyr.gyro.y = imu.calcGyro(imu.gy);
-  gyr.gyro.z = imu.calcGyro(imu.gz);
+  gyr.gyro.x = imu.calcGyro(imu.gx) * SENSORS_DPS_TO_RADS;
+  gyr.gyro.y = imu.calcGyro(imu.gy) * SENSORS_DPS_TO_RADS;
+  gyr.gyro.z = imu.calcGyro(imu.gz) * SENSORS_DPS_TO_RADS;
   gyr.type = SENSOR_TYPE_GYROSCOPE;
-  magg.magnetic.x = imu.calcMag(imu.mx) * SENSORS_GAUSS_TO_MICROTESLA / 2;
-  magg.magnetic.y = imu.calcMag(imu.my) * SENSORS_GAUSS_TO_MICROTESLA / 2;
-  magg.magnetic.z = imu.calcMag(imu.mz) * SENSORS_GAUSS_TO_MICROTESLA / 2;
+  magg.magnetic.x = imu.calcMag(imu.mx);
+  magg.magnetic.y = imu.calcMag(imu.my);
+  magg.magnetic.z = imu.calcMag(imu.mz);
   magg.type = SENSOR_TYPE_MAGNETIC_FIELD;
 
   calibrate(acc);
@@ -328,6 +328,18 @@ void readIMU() {
 
   filter.update(gyr.gyro.z, gyr.gyro.x, gyr.gyro.y, acc.acceleration.z, acc.acceleration.x, -acc.acceleration.y, magg.magnetic.z, magg.magnetic.x, magg.magnetic.y);
   //filter.update(gyr.gyro.x, gyr.gyro.y, gyr.gyro.z, acc.acceleration.x, acc.acceleration.y, acc.acceleration.z, magg.magnetic.x, magg.magnetic.y, magg.magnetic.z);
+  acc.acceleration.x *= SENSORS_GRAVITY_EARTH;
+  acc.acceleration.y *= SENSORS_GRAVITY_EARTH;
+  acc.acceleration.z *= SENSORS_GRAVITY_EARTH;
+
+  gyr.gyro.x *= SENSORS_RADS_TO_DPS;
+  gyr.gyro.y *= SENSORS_RADS_TO_DPS;
+  gyr.gyro.z *= SENSORS_RADS_TO_DPS;
+
+  magg.magnetic.x *= SENSORS_GAUSS_TO_MICROTESLA / 2;
+  magg.magnetic.y *= SENSORS_GAUSS_TO_MICROTESLA / 2;
+  magg.magnetic.z *= SENSORS_GAUSS_TO_MICROTESLA / 2;
+  
 
   // only print the calculated output once in a while
   if (counter++ <= PRINT_EVERY_N_UPDATES) {
