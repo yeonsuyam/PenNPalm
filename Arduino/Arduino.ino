@@ -23,12 +23,12 @@ float accel_zerog[3] = {0, 0, 0};
 /**! XYZ vector of offsets for zero-rate, in rad/s */
 float gyro_zerorate[3] = {0.0926, 0.0092, 0.0580};
 //float gyro_zerorate[3] = {0.0934, 0.0080, 0.0580};
+//float gyro_zerorate[3] = {0.0934, 0.0080, 0.0580}; // change xyz => yxz
 
 /**! XYZ vector of offsets for zero-rate, in degree/s */
 //float gyro_zerorate[3] = {5.4469, 0.5075, 3.3075};
 
 /**! XYZ vector of offsets for hard iron calibration (in uT) */
-float mag_hardiron[3] = {12.47, -2.45, 41.38};
 //float mag_hardiron[3] = {41.94, 12.45, -2.72};
 
 /**! The 3x3 matrix for soft-iron calibration (unitless) */
@@ -296,10 +296,12 @@ void readIMU() {
   float gy = gyr.gyro.y * SENSORS_RADS_TO_DPS;
   float gz = gyr.gyro.z * SENSORS_RADS_TO_DPS;
 
-//  filter.update(gyr.gyro.x, gyr.gyro.y, gyr.gyro.z, acc.acceleration.x, acc.acceleration.y, acc.acceleration.z, magg.magnetic.x, magg.magnetic.y, magg.magnetic.z);
-  filter.update(gx, gy, gz, acc.acceleration.x, acc.acceleration.y, acc.acceleration.z, magg.magnetic.x, magg.magnetic.y, magg.magnetic.z);
+//  filter.updateIMU(gz, gx, gy, acc.acceleration.z, acc.acceleration.x, -acc.acceleration.y); // GOOD
+  filter.update(gz, gx, gy, acc.acceleration.z, acc.acceleration.x, -acc.acceleration.y, magg.magnetic.z, -magg.magnetic.y, magg.magnetic.x); // OK!!
+
   
 
+  
   // only print the calculated output once in a while
   if (counter++ <= PRINT_EVERY_N_UPDATES) {
     return;
@@ -311,10 +313,22 @@ void readIMU() {
   float roll = filter.getRoll();
   float pitch = filter.getPitch();
   float heading = filter.getYaw();
-
-  Serial.print(pitch, 2);
+  float q1, q2, q3, q4;
+  filter.getQuaternion(&q1, &q2, &q3, &q4);
+  Serial.print(q1);
   Serial.print(", ");
-  Serial.println(-roll, 2);
+  Serial.print(q2);
+  Serial.print(", ");
+  Serial.print(q3);
+  Serial.print(", ");
+  Serial.println(q4);
+////  
+//  Serial.print(-roll, 2);
+//  Serial.print(", ");
+//  Serial.print(-pitch, 2);
+//  Serial.print(", ");
+//  Serial.println(-heading, 2);
+//  
 }
 
 
@@ -349,8 +363,11 @@ int noTouchTimer = 0;
 
 void loop() {
   if ((millis() - timestamp) < (1000 / FILTER_UPDATE_RATE_HZ)) {
+    //Serial.println((millis() - timestamp));
     return;
   }
+  
+  filter.begin(1/float(millis() - timestamp) * 1000);
   timestamp = millis();
   readIMU();
   //if (isTouch()) {
