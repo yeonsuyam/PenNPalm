@@ -28,19 +28,23 @@ Adafruit_Sensor_Calibration_SDFat cal;
 float accel_zerog[3] = {0, 0, 0};
 
 /**! XYZ vector of offsets for zero-rate, in rad/s */
-float gyro_zerorate[3] = {0, 0, 0};
+float gyro_zerorate[3] = {0.0926, 0.0092, 0.0580};
+//float gyro_zerorate[3] = {0.0934, 0.0080, 0.0580};
+
+/**! XYZ vector of offsets for zero-rate, in degree/s */
+//float gyro_zerorate[3] = {5.4469, 0.5075, 3.3075};
 
 /**! XYZ vector of offsets for hard iron calibration (in uT) */
-//float mag_hardiron[3] = {12.47, -2.45, 41.38};
-float mag_hardiron[3] = {41.94, 12.45, -2.72};
+float mag_hardiron[3] = {12.47, -2.45, 41.38};
+//float mag_hardiron[3] = {41.94, 12.45, -2.72};
 
 /**! The 3x3 matrix for soft-iron calibration (unitless) */
-//float mag_softiron[9] = {0.992, 0.026, 0.022, 0.026, 0.989, 0.002, 0.022, 0.002, 1.021};
-float mag_softiron[9] = {1.013, 0.025, 0.001, 0.025, 1.000, 0.024, 0.001, 0.024, 0.989};
+float mag_softiron[9] = {0.992, 0.026, 0.022, 0.026, 0.989, 0.002, 0.022, 0.002, 1.021};
+//float mag_softiron[9] = {1.013, 0.025, 0.001, 0.025, 1.000, 0.024, 0.001, 0.024, 0.989};
 
 /**! The magnetic field magnitude in uTesla */
-//float mag_field = 22.33;
-float mag_field = 22.4;
+float mag_field = 22.33;
+//float mag_field = 22.4;
 
 
 #define PRINT_EVERY_N_UPDATES 4
@@ -135,79 +139,6 @@ CapacitiveSensor cs_2_3 = CapacitiveSensor(2, 3); //10M Resistor between pins 7 
 unsigned long csSum;
 
 
-void printGyro()
-{
-  // Now we can use the gx, gy, and gz variables as we please.
-  // Either print them as raw ADC values, or calculated in DPS.
-  Serial.print("G: ");
-#ifdef PRINT_CALCULATED
-  // If you want to print calculated values, you can use the
-  // calcGyro helper function to convert a raw ADC value to
-  // DPS. Give the function the value that you want to convert.
-  Serial.print(imu.calcGyro(imu.gx), 2);
-  Serial.print(", ");
-  Serial.print(imu.calcGyro(imu.gy), 2);
-  Serial.print(", ");
-  Serial.print(imu.calcGyro(imu.gz), 2);
-  Serial.println(" deg/s");
-#elif defined PRINT_RAW
-  Serial.print(imu.gx);
-  Serial.print(", ");
-  Serial.print(imu.gy);
-  Serial.print(", ");
-  Serial.println(imu.gz);
-#endif
-}
-
-void printAccel()
-{
-  // Now we can use the ax, ay, and az variables as we please.
-  // Either print them as raw ADC values, or calculated in g's.
-  Serial.print("A: ");
-#ifdef PRINT_CALCULATED
-  // If you want to print calculated values, you can use the
-  // calcAccel helper function to convert a raw ADC value to
-  // g's. Give the function the value that you want to convert.
-  Serial.print(imu.calcAccel(imu.ax), 2);
-  Serial.print(", ");
-  Serial.print(imu.calcAccel(imu.ay), 2);
-  Serial.print(", ");
-  Serial.print(imu.calcAccel(imu.az), 2);
-  Serial.println(" g");
-#elif defined PRINT_RAW
-  Serial.print(imu.ax);
-  Serial.print(", ");
-  Serial.print(imu.ay);
-  Serial.print(", ");
-  Serial.println(imu.az);
-#endif
-
-}
-
-void printMag()
-{
-  // Now we can use the mx, my, and mz variables as we please.
-  // Either print them as raw ADC values, or calculated in Gauss.
-  Serial.print("M: ");
-#ifdef PRINT_CALCULATED
-  // If you want to print calculated values, you can use the
-  // calcMag helper function to convert a raw ADC value to
-  // Gauss. Give the function the value that you want to convert.
-  Serial.print(imu.calcMag(imu.mx), 2);
-  Serial.print(", ");
-  Serial.print(imu.calcMag(imu.my), 2);
-  Serial.print(", ");
-  Serial.print(imu.calcMag(imu.mz), 2);
-  Serial.println(" gauss");
-#elif defined PRINT_RAW
-  Serial.print(imu.mx);
-  Serial.print(", ");
-  Serial.print(imu.my);
-  Serial.print(", ");
-  Serial.println(imu.mz);
-#endif
-}
-
 byte readPAT9125(byte address) {
   Wire.beginTransmission(PAT_ADDR);
   Wire.write(address);
@@ -262,9 +193,6 @@ void initIMU() {
                    "if the board jumpers are.");
     while (1);
   }
-
-  //imu.calibrate(false);
-  //imu.calibrateMag(false);
 }
 
 
@@ -280,8 +208,7 @@ bool isTouch() {
 
 void readIMU() {
   static uint8_t counter = 0;
-  //imu.calibrate(false);
-  //imu.calibrateMag(false);
+
   //////////////
   // READ IMU //
   //////////////
@@ -390,7 +317,6 @@ int noTouchTimer = 0;
 
 void loop() {
   if ((millis() - timestamp) < (1000 / FILTER_UPDATE_RATE_HZ)) {
-    //Serial.println("no");
     return;
   }
   timestamp = millis();
