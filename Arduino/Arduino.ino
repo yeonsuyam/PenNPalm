@@ -175,6 +175,46 @@ bool calibrate(sensors_event_t &event) {
   return true;
 }
 
+bool toAdafruit(sensors_event_t &event) {
+  if (event.type == SENSOR_TYPE_MAGNETIC_FIELD) {
+    event.magnetic.x *= (SENSORS_GAUSS_TO_MICROTESLA/2);
+    event.magnetic.y *= (SENSORS_GAUSS_TO_MICROTESLA/2);
+    event.magnetic.z *= (SENSORS_GAUSS_TO_MICROTESLA/2);
+  } else if (event.type == SENSOR_TYPE_GYROSCOPE) {
+    event.gyro.x *= SENSORS_DPS_TO_RADS;
+    event.gyro.y *= SENSORS_DPS_TO_RADS;
+    event.gyro.z *= SENSORS_DPS_TO_RADS;
+  } else if (event.type == SENSOR_TYPE_ACCELEROMETER) {
+    event.acceleration.x *= SENSORS_GRAVITY_EARTH;
+    event.acceleration.y *= SENSORS_GRAVITY_EARTH;
+    event.acceleration.z *= SENSORS_GRAVITY_EARTH;
+  } else {
+    return false;
+  }
+  return true;
+}
+
+
+bool toSparkfun(sensors_event_t &event) {
+  if (event.type == SENSOR_TYPE_MAGNETIC_FIELD) {
+    event.magnetic.x /= (SENSORS_GAUSS_TO_MICROTESLA/2);
+    event.magnetic.y /= (SENSORS_GAUSS_TO_MICROTESLA/2);
+    event.magnetic.z /= (SENSORS_GAUSS_TO_MICROTESLA/2);
+  } else if (event.type == SENSOR_TYPE_GYROSCOPE) {
+    event.gyro.x /= SENSORS_DPS_TO_RADS;
+    event.gyro.y /= SENSORS_DPS_TO_RADS;
+    event.gyro.z /= SENSORS_DPS_TO_RADS;
+  } else if (event.type == SENSOR_TYPE_ACCELEROMETER) {
+    event.acceleration.x /= SENSORS_GRAVITY_EARTH;
+    event.acceleration.y /= SENSORS_GRAVITY_EARTH;
+    event.acceleration.z /= SENSORS_GRAVITY_EARTH;
+  } else {
+    return false;
+  }
+  return true;
+}
+
+
 void initIMU() {
   if (imu.begin() == false) // with no arguments, this uses default addresses (AG:0x6B, M:0x1E) and i2c port (Wire).
   {
@@ -233,32 +273,31 @@ void readIMU() {
   acc.acceleration.y = imu.calcAccel(imu.ay);
   acc.acceleration.z = imu.calcAccel(imu.az);
   acc.type = SENSOR_TYPE_ACCELEROMETER;
-  gyr.gyro.x = imu.calcGyro(imu.gx) * SENSORS_DPS_TO_RADS;
-  gyr.gyro.y = imu.calcGyro(imu.gy) * SENSORS_DPS_TO_RADS;
-  gyr.gyro.z = imu.calcGyro(imu.gz) * SENSORS_DPS_TO_RADS;
+  gyr.gyro.x = imu.calcGyro(imu.gx);
+  gyr.gyro.y = imu.calcGyro(imu.gy);
+  gyr.gyro.z = imu.calcGyro(imu.gz);
   gyr.type = SENSOR_TYPE_GYROSCOPE;
   magg.magnetic.x = imu.calcMag(imu.mx);
   magg.magnetic.y = imu.calcMag(imu.my);
   magg.magnetic.z = imu.calcMag(imu.mz);
   magg.type = SENSOR_TYPE_MAGNETIC_FIELD;
 
+  toAdafruit(acc);
+  toAdafruit(gyr);
+  toAdafruit(magg);
+  
   calibrate(acc);
   calibrate(gyr);
   calibrate(magg);
 
-  filter.update(gyr.gyro.z, gyr.gyro.x, gyr.gyro.y, acc.acceleration.z, acc.acceleration.x, -acc.acceleration.y, magg.magnetic.z, magg.magnetic.x, magg.magnetic.y);
-  //filter.update(gyr.gyro.x, gyr.gyro.y, gyr.gyro.z, acc.acceleration.x, acc.acceleration.y, acc.acceleration.z, magg.magnetic.x, magg.magnetic.y, magg.magnetic.z);
-  acc.acceleration.x *= SENSORS_GRAVITY_EARTH;
-  acc.acceleration.y *= SENSORS_GRAVITY_EARTH;
-  acc.acceleration.z *= SENSORS_GRAVITY_EARTH;
+  // Gyroscope needs to be converted from Rad/s to Degree/s
+  // the rest are not unit-important
+  float gx = gyr.gyro.x * SENSORS_RADS_TO_DPS;
+  float gy = gyr.gyro.y * SENSORS_RADS_TO_DPS;
+  float gz = gyr.gyro.z * SENSORS_RADS_TO_DPS;
 
-  gyr.gyro.x *= SENSORS_RADS_TO_DPS;
-  gyr.gyro.y *= SENSORS_RADS_TO_DPS;
-  gyr.gyro.z *= SENSORS_RADS_TO_DPS;
-
-  magg.magnetic.x *= SENSORS_GAUSS_TO_MICROTESLA / 2;
-  magg.magnetic.y *= SENSORS_GAUSS_TO_MICROTESLA / 2;
-  magg.magnetic.z *= SENSORS_GAUSS_TO_MICROTESLA / 2;
+//  filter.update(gyr.gyro.x, gyr.gyro.y, gyr.gyro.z, acc.acceleration.x, acc.acceleration.y, acc.acceleration.z, magg.magnetic.x, magg.magnetic.y, magg.magnetic.z);
+  filter.update(gx, gy, gz, acc.acceleration.x, acc.acceleration.y, acc.acceleration.z, magg.magnetic.x, magg.magnetic.y, magg.magnetic.z);
   
 
   // only print the calculated output once in a while
