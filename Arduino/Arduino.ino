@@ -6,7 +6,6 @@
 #include <SparkFunLSM9DS1.h>
 #include <CapacitiveSensor.h>
 #include <Adafruit_Sensor_Calibration.h>
-#include "Adafruit_Sensor_Calibration.h"
 #include <Adafruit_AHRS.h>
 
 ///////////////////////////
@@ -17,12 +16,6 @@ static unsigned long lastPrint = 0; // Keep track of print time
 LSM9DS1 imu;
 Adafruit_Madgwick filter;  // faster than NXP
 //Adafruit_Mahony filter;  // fastest/smalleset
-
-#if defined(ADAFRUIT_SENSOR_CALIBRATION_USE_EEPROM)
-Adafruit_Sensor_Calibration_EEPROM cal;
-#else
-Adafruit_Sensor_Calibration_SDFat cal;
-#endif
 
 /**! XYZ vector of offsets for zero-g, in m/s^2 */
 float accel_zerog[3] = {0, 0, 0};
