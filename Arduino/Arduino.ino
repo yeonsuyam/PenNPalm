@@ -21,24 +21,19 @@ Adafruit_Madgwick filter;  // faster than NXP
 float accel_zerog[3] = {0, 0, 0};
 
 /**! XYZ vector of offsets for zero-rate, in rad/s */
-float gyro_zerorate[3] = {0.0926, 0.0092, 0.0580};
-//float gyro_zerorate[3] = {0.0934, 0.0080, 0.0580};
-//float gyro_zerorate[3] = {0.0934, 0.0080, 0.0580}; // change xyz => yxz
+float gyro_zerorate[3] = {0.0926, 0.0092, 0.0580}; // xyz
 
 /**! XYZ vector of offsets for zero-rate, in degree/s */
 //float gyro_zerorate[3] = {5.4469, 0.5075, 3.3075};
 
 /**! XYZ vector of offsets for hard iron calibration (in uT) */
-//float mag_hardiron[3] = {41.94, 12.45, -2.72};
+float mag_hardiron[3] = {11.70, -1.25, 42.35}; // xyz
 
 /**! The 3x3 matrix for soft-iron calibration (unitless) */
-float mag_softiron[9] = {0.992, 0.026, 0.022, 0.026, 0.989, 0.002, 0.022, 0.002, 1.021};
-//float mag_softiron[9] = {1.013, 0.025, 0.001, 0.025, 1.000, 0.024, 0.001, 0.024, 0.989};
+float mag_softiron[9] = {0.998, 0.029, 0.016, 0.029, 0.988, -0.006, 0.016, -0.006, 1.016};  //xyz
 
 /**! The magnetic field magnitude in uTesla */
-float mag_field = 22.33;
-//float mag_field = 22.4;
-
+float mag_field = 22.14;
 
 #define PRINT_EVERY_N_UPDATES 4
 #define FILTER_UPDATE_RATE_HZ 400
@@ -296,10 +291,12 @@ void readIMU() {
   float gy = gyr.gyro.y * SENSORS_RADS_TO_DPS;
   float gz = gyr.gyro.z * SENSORS_RADS_TO_DPS;
 
-//  filter.updateIMU(gz, gx, gy, acc.acceleration.z, acc.acceleration.x, -acc.acceleration.y); // GOOD
-  filter.update(gz, gx, gy, acc.acceleration.z, acc.acceleration.x, -acc.acceleration.y, magg.magnetic.z, -magg.magnetic.y, magg.magnetic.x); // OK!!
 
   
+//  filter.update(gx, gy, gz, acc.acceleration.x, acc.acceleration.y, acc.acceleration.z, magg.magnetic.x, magg.magnetic.y, magg.magnetic.z); 
+//  filter.updateIMU(gy, gx, gz, acc.acceleration.y, acc.acceleration.x, acc.acceleration.z);
+
+  filter.updateIMU(-gz, -gx, -gy, -acc.acceleration.z, -acc.acceleration.x, -acc.acceleration.y);
 
   
   // only print the calculated output once in a while
@@ -314,21 +311,35 @@ void readIMU() {
   float pitch = filter.getPitch();
   float heading = filter.getYaw();
   float q1, q2, q3, q4;
-  filter.getQuaternion(&q1, &q2, &q3, &q4);
-  Serial.print(q1);
-  Serial.print(", ");
-  Serial.print(q2);
-  Serial.print(", ");
-  Serial.print(q3);
-  Serial.print(", ");
-  Serial.println(q4);
-////  
-//  Serial.print(-roll, 2);
+
+  // 6DOF Visualize with quaternion
+//  filter.getQuaternion(&q1, &q2, &q3, &q4);
+//  Serial.print(q1);
 //  Serial.print(", ");
-//  Serial.print(-pitch, 2);
+//  Serial.print(q2);
 //  Serial.print(", ");
-//  Serial.println(-heading, 2);
-//  
+//  Serial.print(q3);
+//  Serial.print(", ");
+//  Serial.println(q4);
+
+  // 6DOF Visualize with roll pitch yaw
+//  Serial.print(pitch, 2);
+//  Serial.print(", ");
+//  Serial.print(roll, 2);
+//  Serial.print(", ");
+//  Serial.print(heading, 2);
+//  Serial.print(", ");
+//  Serial.println("0.0");
+
+  // 4DOF Visualize with roll pitch yaw
+  Serial.print(roll, 2);
+  Serial.print(", ");
+  Serial.print(pitch, 2);
+  Serial.print(", ");
+  Serial.print("0.0");
+  Serial.print(", ");
+  Serial.println("0.0");
+
 }
 
 
