@@ -76,7 +76,7 @@ void prettyPrint(word w, int xy) {
   }
 }
 
-void readDisplacement() {
+void readDisplacement(bool isPrint) {
   //////////////////
   // READ PAT9125 //
   //////////////////
@@ -88,10 +88,12 @@ void readDisplacement() {
     dx = dx | readPAT9125(0x03);     // Delta_X_Lo
     word dy = (dxy << 8) & 0x0f00;
     dy = dy | readPAT9125(0x04);     // Delta_Y_Lo
-    prettyPrint(dx, 1);
-    Serial.print(", ");
-    prettyPrint(dy, 2);
-    Serial.println("");
+    if (isPrint){
+      prettyPrint(dx, 1);
+      Serial.print(", ");
+      prettyPrint(dy, 2);
+      Serial.println("");
+    }
   }
 }
 
@@ -234,7 +236,9 @@ bool isTouch() {
 }
 
 
-void readIMU() {
+bool first = true;
+float ax, ay, az, gx, gy, gz;
+void readIMU(bool isPrint) {
   static uint8_t counter = 0;
 
   //////////////
@@ -287,16 +291,69 @@ void readIMU() {
 
   // Gyroscope needs to be converted from Rad/s to Degree/s
   // the rest are not unit-important
-  float gx = gyr.gyro.x * SENSORS_RADS_TO_DPS;
-  float gy = gyr.gyro.y * SENSORS_RADS_TO_DPS;
-  float gz = gyr.gyro.z * SENSORS_RADS_TO_DPS;
-
-
+  if (first) {
+    gx = round(gyr.gyro.x * SENSORS_RADS_TO_DPS);
+    gy = round(gyr.gyro.y * SENSORS_RADS_TO_DPS);
+    gz = round(gyr.gyro.z * SENSORS_RADS_TO_DPS);
+    ax = round(acc.acceleration.x * 10.0) / 10.0;
+    ay = round(acc.acceleration.y * 10.0) / 10.0;
+    az = round(acc.acceleration.z * 10.0) / 10.0;
+//    first = false;
+  } else {
+//    gx = 0.1 * gx + 0.9 * round(gyr.gyro.x * SENSORS_RADS_TO_DPS);
+//    gy = 0.1 * gy + 0.9 * round(gyr.gyro.y * SENSORS_RADS_TO_DPS);
+//    gz = 0.1 * gz + 0.9 * round(gyr.gyro.z * SENSORS_RADS_TO_DPS);
+//  
+//    ax = 0.1 * ax + 0.9 * round(acc.acceleration.x * 10.0) / 10.0;
+//    ay = 0.1 * ay + 0.9 * round(acc.acceleration.y * 10.0) / 10.0;
+//    az = 0.1 * az + 0.9 * round(acc.acceleration.z * 10.0) / 10.0;
+    gx = 0.2 * gx + 0.8 * gyr.gyro.x * SENSORS_RADS_TO_DPS;
+    gy = 0.2 * gy + 0.8 * gyr.gyro.y * SENSORS_RADS_TO_DPS;
+    gz = 0.2 * gz + 0.8 * gyr.gyro.z * SENSORS_RADS_TO_DPS;
   
+    ax = 0.2 * ax + 0.8 * acc.acceleration.x;
+    ay = 0.2 * ay + 0.8 * acc.acceleration.y;
+    az = 0.2 * az + 0.8 * acc.acceleration.z;
+  }
+//Here
+//  gx = round(gx);
+//  gy = round(gy);
+//  gz = round(gz);
+//  ax = round(ax * 10.0) / 10.0;
+//  ay = round(ay * 10.0) / 10.0;
+//  az = round(az * 10.0) / 10.0;
+// 
+//  Serial.print(acc.acceleration.x);
+//  Serial.print(", ");
+//  Serial.print(acc.acceleration.y);
+//  Serial.print(", ");
+//  Serial.println(acc.acceleration.z);
+
+//  Serial.print(magg.magnetic.x);
+//  Serial.print(", ");
+//  Serial.print(magg.magnetic.y);
+//  Serial.print(", ");
+
+//  Serial.println(magg.magnetic.z);
+
+//
+//  Serial.print(gx);
+//  Serial.print(", ");
+//  Serial.print(gy);
+//  Serial.print(", ");
+//  Serial.print(gz);
+//  Serial.print(", ");
+//  Serial.print(ax);
+//  Serial.print(", ");
+//  Serial.print(ay);
+//  Serial.print(", ");
+//  Serial.println(az);
+// 
 //  filter.update(gx, gy, gz, acc.acceleration.x, acc.acceleration.y, acc.acceleration.z, magg.magnetic.x, magg.magnetic.y, magg.magnetic.z); 
 //  filter.updateIMU(gy, gx, gz, acc.acceleration.y, acc.acceleration.x, acc.acceleration.z);
 
-  filter.updateIMU(-gz, -gx, -gy, -acc.acceleration.z, -acc.acceleration.x, -acc.acceleration.y);
+  filter.updateIMU(-gz, -gx, -gy, -az, -ax, -ay);
+//  filter.update(-gz, -gx, -gy, -acc.acceleration.z, -acc.acceleration.x, -acc.acceleration.y, -magg.magnetic.z, magg.magnetic.y, magg.magnetic.x);
 
   
   // only print the calculated output once in a while
@@ -311,9 +368,9 @@ void readIMU() {
   float pitch = filter.getPitch();
   float heading = filter.getYaw();
   float q1, q2, q3, q4;
+//  filter.getQuaternion(&q1, &q2, &q3, &q4);
 
   // 6DOF Visualize with quaternion
-//  filter.getQuaternion(&q1, &q2, &q3, &q4);
 //  Serial.print(q1);
 //  Serial.print(", ");
 //  Serial.print(q2);
@@ -331,16 +388,22 @@ void readIMU() {
 //  Serial.print(", ");
 //  Serial.println("0.0");
 
-  // 4DOF Visualize with roll pitch yaw
-  Serial.print(roll, 2);
-  Serial.print(", ");
-  Serial.print(pitch, 2);
-  Serial.print(", ");
-  Serial.print("0.0");
-  Serial.print(", ");
-  Serial.println("0.0");
-
+//  // 4DOF Visualize with roll pitch yaw
+//  Serial.print(roll, 2);
+//  Serial.print(", ");
+//  Serial.print(pitch, 2);
+//  Serial.print(", ");
+//  Serial.print("0.0");
+//  Serial.print(", ");
+//  Serial.println("0.0");
+//
+  if (isPrint) {
+    Serial.print(-pitch, 2);
+    Serial.print(", ");
+    Serial.println(roll, 2);
+  }
 }
+
 
 
 
@@ -370,37 +433,36 @@ void setup() {
 }
 
 
-int noTouchTimer = 0;
+int noTouchTimer = 10000;
+
 
 void loop() {
   if ((millis() - timestamp) < (1000 / FILTER_UPDATE_RATE_HZ)) {
-    //Serial.println((millis() - timestamp));
     return;
   }
-  
   filter.begin(1/float(millis() - timestamp) * 1000);
   timestamp = millis();
-  readIMU();
-  //if (isTouch()) {
-    //readDisplacement();
-    //noTouchTimer = 0;
-  //} else {
-    //noTouchTimer += 1;
-    //if (noTouchTimer < 10) {
-      //readDisplacement();
-    
-    //else if (noTouchTimer == 50) {
-      //Serial.println("+999, 0");
-    //}
-    // else if (noTouchTimer == 500) {
-      // Serial.println("+999, 0");
-    // }
-    // else if (noTouchTimer == 1000) {
-      // Serial.println("+999, 0");
-    // }
 
-    //if (noTouchTimer > 1000) {
-      //readIMU();
-    //}
-  //}
+  if (isTouch()) {
+    if (noTouchTimer >= 20){
+      Serial.println("+999, +999");
+      readDisplacement(false);
+      noTouchTimer = 0;
+    }
+    readDisplacement(true);
+    readIMU(false);
+  } else {
+    noTouchTimer += 1;
+    if (noTouchTimer < 10) {
+      readDisplacement(true);
+    }
+    else if (noTouchTimer == 20) {
+      Serial.println("-999, -999");
+    }
+    if (noTouchTimer > 20) {
+      readIMU(true);
+    } else {
+      readIMU(false);
+    }
+  }
 }

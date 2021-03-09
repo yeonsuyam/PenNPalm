@@ -29,17 +29,17 @@ class Mouse():
 		self.dx = 0
 		self.dy = 0
 
-		self.initOneEuroFilter()
+		# self.initOneEuroFilter(3.0, 0.005)
 
 		return
 
 
-	def initOneEuroFilter(self):
+	def initOneEuroFilter(self, beta, cutoff):
 		self.config = {
 			'freq': 100,       # Hz
-			'mincutoff': 0.005,  # FIXME
-			'beta': 4,       # FIXME
-			'dcutoff': 0.005     # this one should be ok
+			'mincutoff': 0.0005,  # FIXME
+			'beta': 3.0,       # FIXME
+			'dcutoff': 0.0005     # this one should be ok
 		}
 
 		self.oneEuroFilterX = OneEuroFilter(**self.config)
@@ -85,3 +85,19 @@ class Mouse():
 	def mouseMove(self, pitch, roll):
 		dx, dy = self.pitchrollTodxdy(pitch, roll)
 		self.mouse.position = (self.x + dx, self.y - dy)
+
+	def drawMove(self, dx, dy):
+		self.mouse.move(dx, -dy)
+
+	def press(self):
+		self.mouse.press(Button.left)
+
+	def release(self):
+		self.mouse.release(Button.left)
+
+	def setPitchRollStandard(self, pitchStandard, rollStandard):
+		self.pitchStandard = pitchStandard
+		self.rollStandard = rollStandard
+
+	def resetXY(self):
+		self.x, self.y = self.mouse.position
