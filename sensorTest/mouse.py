@@ -4,7 +4,7 @@ import serial
 import time
 from datetime import datetime
 import numpy as np
-from numpy import power, sqrt, sin, cos
+from numpy import power, sqrt, sin, cos, tan
 import matplotlib.pyplot as plt
 import matplotlib
 from pynput.mouse import Button, Controller
@@ -69,8 +69,8 @@ class Mouse():
 
 	def pitchrollTodxdy(self, pitch, roll):
 		# Relative
-		dx = self.d * sin((pitch - self.pitchStandard) / 180 * np.pi)
-		dy = self.d * sin((roll - self.rollStandard) / 180 * np.pi)
+		dx = self.d * tan((pitch - self.pitchStandard) / 180 * np.pi)
+		dy = self.d * tan((roll - self.rollStandard) / 180 * np.pi)
 
 		# dx, dy = self.getExponentialMovingAverage(dx, dy)
 		dx, dy = self.getOneEuroFilter(dx, dy)
