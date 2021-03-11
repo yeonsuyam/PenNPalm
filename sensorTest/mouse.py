@@ -13,7 +13,7 @@ import datetime
 
 
 class Mouse():
-	def __init__(self, mouse, movingAverageWeight, d, x, y, theta, pitchStandard, rollStandard):
+	def __init__(self, mouse, movingAverageWeight, d, x, y, theta, pitchStandard, rollStandard, usingGyro = False):
 		self.mouse = mouse
 		self.weight = movingAverageWeight
 		
@@ -29,7 +29,9 @@ class Mouse():
 		self.dx = 0
 		self.dy = 0
 
-		# self.initOneEuroFilter(3.0, 0.005)
+		self.usingGyro = usingGyro
+
+		self.initOneEuroFilter(0.3, 1.5)
 
 		return
 
@@ -37,9 +39,9 @@ class Mouse():
 	def initOneEuroFilter(self, beta, cutoff):
 		self.config = {
 			'freq': 100,       # Hz
-			'mincutoff': 0.0005,  # FIXME
-			'beta': 3.0,       # FIXME
-			'dcutoff': 0.0005     # this one should be ok
+			'mincutoff': cutoff,  # FIXME
+			'beta': beta,       # FIXME
+			'dcutoff': cutoff     # this one should be ok
 		}
 
 		self.oneEuroFilterX = OneEuroFilter(**self.config)
@@ -82,9 +84,23 @@ class Mouse():
 		return dxRotate, dyRotate
 
 
+	def gyroTodxdy(self, gyrox, gyroy):
+		dx, dy = self.getOneEuroFilter(dx, dy)
+
+
+
 	def mouseMove(self, pitch, roll):
-		dx, dy = self.pitchrollTodxdy(pitch, roll)
-		self.mouse.position = (self.x + dx, self.y - dy)
+		if not self.usingGyro:
+			dx, dy = self.pitchrollTodxdy(pitch, roll)
+			self.mouse.position = (self.x + dx, self.y - dy)
+
+		if self.usingGyro:
+			dpitch = pitch
+			droll = roll
+			
+			dx, dy = self.getOneEuroFilter(dpitch, droll)
+			self.mouse.move(dx, dy)
+
 
 	def drawMove(self, dx, dy):
 		self.mouse.move(dx, -dy)
