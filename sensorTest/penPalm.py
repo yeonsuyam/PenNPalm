@@ -2,6 +2,7 @@ import serial
 from multiprocessing import Process, Queue
 import queue
 from pynput.mouse import Button, Controller
+from pynput import keyboard
 from mouse import Mouse
 import datetime
 
@@ -9,7 +10,8 @@ port = "/dev/cu.usbserial-AK08KN48"
 baudrate = 115200
 
 defaultMouseGain = 3
-smallMouseGain = 7
+smallMouseGain = 10
+
 
 class PenPalm():
 	def __init__(self, dataQueue, debug=False):
@@ -35,18 +37,15 @@ class PenPalm():
 		while True:
 			if self.getData():
 				if self.isTouch():
-					if self.isClick():
-						# TODO: only run isClick() function when case 2
-						if self.isWritingState:
-							self.mouseGain = smallMouseGain
-							self.isWritingStarted = False
+					if self.previousCapacitiveStates[-1] != 2:
+						if self.displacementX == -0.0 and self.displacementY == -0.0:
+							if not self.isWritingState:
+								self.startWritngState()
 						else:
-							self.mouseGain = defaultMouseGain
-					else:
-						if self.previousCapacitiveStates[-1] != 2:
+							print(self.displacementX, self.displacementY)
 							self.mouse.press()
 							self.isWritingStarted = True
-						self.mouse.drawMove(self.displacementX, self.displacementY)
+					self.mouse.drawMove(self.displacementX, self.displacementY)
 
 				elif self.isHover():
 					self.mouse.release()
@@ -126,6 +125,19 @@ class PenPalm():
 			else:
 				return False
 
+	def startWritngState(self):
+		print("Start isWritingState")
+		self.isWritingState = True
+		self.isWritingStarted = False
+		self.mouseGain = smallMouseGain
+		return
+
+	def endWritingState(self):
+		self.isWritingState = False
+		self.isWritingStarted = False
+		self.mouseGain = defaultMouseGain
+		return
+
 	def calibrateGyro(self):
 		self.gyroX = int(self.gyroX / self.mouseGain)
 		self.gyroY = int(self.gyroY / self.mouseGain)
@@ -169,12 +181,21 @@ def main(data):
         except:
             pass
 
-if __name__ == "__main__":
-    # args = parse_args()
-    data = Queue()
-    mainProcess = Process(target=main, args=(data, ), daemon=True)
-    mainProcess.start()
+def on_press(key):
+	print("End Writing State")
+	penPalm.endWritingState()
+	return
 
-    penPalm = PenPalm(data, True)
-    penPalm.run()
+if __name__ == "__main__":
+	# args = parse_args()
+	data = Queue()
+	mainProcess = Process(target=main, args=(data, ), daemon=True)
+	mainProcess.start()
+
+	listener = keyboard.Listener(
+		on_press=on_press)
+	listener.start()
+
+	penPalm = PenPalm(data, False)
+	penPalm.run()
 
