@@ -8,16 +8,24 @@ import datetime
 port = "/dev/cu.usbserial-AK08KN48"
 baudrate = 115200
 
+defaultMouseGain = 3
+smallMouseGain = 7
+
 class PenPalm():
 	def __init__(self, dataQueue, debug=False):
 		self.dataQueue = dataQueue
 
 		self.mouse = Mouse(Controller(), 0.5, 2000, 1000, 200, 0, 0, 0, True)
+		self.mouseGain = defaultMouseGain
+
 		self.capacitiveBoundaryTouch = 100
 		self.capacitiveBoundaryHover = 80
 		self.capacitiveIsTouchHoverNone = 0 # 0: None, 1: Hover, 2: Touch
 		self.previousCapacitiveStates = [0 for i in range(10)]
 		self.capacitive = 0
+
+		self.isWritingState = False
+		self.isWritingStarted = False
 
 		# For debugging
 		self.debug = debug
@@ -27,19 +35,35 @@ class PenPalm():
 		while True:
 			if self.getData():
 				if self.isTouch():
-					if self.previousCapacitiveStates[-1] != 2: 
-						self.mouse.press()
-					self.mouse.drawMove(self.displacementX, self.displacementY)
+					if self.isClick():
+						# TODO: only run isClick() function when case 2
+						if self.isWritingState:
+							self.mouseGain = smallMouseGain
+							self.isWritingStarted = False
+						else:
+							self.mouseGain = defaultMouseGain
+					else:
+						if self.previousCapacitiveStates[-1] != 2:
+							self.mouse.press()
+							self.isWritingStarted = True
+						self.mouse.drawMove(self.displacementX, self.displacementY)
 
 				elif self.isHover():
-					# if self.previousCapacitiveStates[-1] == 2:
 					self.mouse.release()
-					self.mouse.mouseMove(self.gyroX, self.gyroY)
+					# TODO: only run isClick() function when case 2
+					if self.isWritingState and not self.isWritingStarted:
+						continue
+					else:
+						self.mouse.mouseMove(self.gyroX, self.gyroY)
+					# TODO: self.mouse.mouseMove(self.displacementX, self.displacementY)
 
 				elif self.isNone():
-					# if self.previousCapacitiveStates[-1] == 2:
 					self.mouse.release()
-					self.mouse.mouseMove(self.gyroX, self.gyroY)
+					# TODO: only run isClick() function when case 2
+					if self.isWritingState and not self.isWritingStarted:
+						continue
+					else:
+						self.mouse.mouseMove(self.gyroX, self.gyroY)
 
 				else:
 					assert 0, 'Unknown touch state'
@@ -91,9 +115,20 @@ class PenPalm():
 		else:
 			return False
 
+	def isClick(self):
+		if self.isTouch() and self.previousCapacitiveStates[-1] != 2:
+			if self.displacementX == 0 and self.displacementY == 0:
+				if self.isWritingState:
+					self.isWritingState = False
+				else:
+					self.isWritingState = True
+				return True
+			else:
+				return False
+
 	def calibrateGyro(self):
-		self.gyroX = int(self.gyroX / 3)
-		self.gyroY = int(self.gyroY / 3)
+		self.gyroX = int(self.gyroX / self.mouseGain)
+		self.gyroY = int(self.gyroY / self.mouseGain)
 		return
 
 	def dataFormatCheck(self):
